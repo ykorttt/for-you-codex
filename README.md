@@ -15,9 +15,26 @@
 3. 「おみくじを受け取る」를 누르면 운세 종이가 펼쳐집니다.
 4. 「もう一度引く」로 다시 뽑기 (횟수 제한 없음).
 
-## 학생들에게 배포하기 (GitHub Pages)
+## 학생들에게 배포하기
 
-폰의 흔들기 센서는 **https 주소에서만** 동작합니다. 이 저장소는 공개 저장소라 GitHub Pages로 무료 배포할 수 있어요.
+폰의 흔들기 센서는 **https 주소에서만** 동작합니다. 아래 두 방법 모두 https 주소를 무료로 줍니다.
+
+### Cloudflare Workers (추천)
+
+저장소에 `wrangler.jsonc`가 들어 있어서, Cloudflare에 이 저장소를 한 번 연결해 두면 push할 때마다 자동으로 다시 배포됩니다.
+
+1. [Cloudflare 대시보드](https://dash.cloudflare.com/?to=/:account/workers-and-pages) → **Workers & Pages** → **Create application**
+2. **GitHub** 선택 → `ykorttt/for-you-codex` 저장소 선택 (처음이면 GitHub 연결 권한을 허용)
+3. 설정 화면에서
+   - 프로젝트 이름: `omikuji`
+   - 브랜치: 이 파일이 있는 브랜치 (`main`이 비어 있다면 꼭 바꾸기)
+   - Build command: 비워 두기
+   - Deploy command: `npx wrangler deploy` (기본값 그대로)
+4. **Save and Deploy** → 1분쯤 뒤 `https://omikuji.<내 계정 이름>.workers.dev` 로 접속
+
+`index.html`만 공개되고 README·설정 파일은 올라가지 않습니다(`.assetsignore`).
+
+### GitHub Pages
 
 1. GitHub 저장소 → **Settings** → **Pages**
 2. **Source**: `Deploy from a branch`
