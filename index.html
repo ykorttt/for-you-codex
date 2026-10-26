@@ -66,7 +66,6 @@ body {
 }
 p, h1, h2, h3, dl, dd, ol { margin: 0; }
 ruby rt { font-size: .5em; font-family: var(--f-ja); font-weight: 500; letter-spacing: 0; }
-.no-ruby rt { display: none; }
 
 .app {
   max-width: 440px;
@@ -313,8 +312,8 @@ ruby rt { font-size: .5em; font-family: var(--f-ja); font-weight: 500; letter-sp
   padding: 14px 0;
   border-block: 1px solid var(--rule);
 }
-.overall .ja { font-family: var(--f-ja); font-weight: 700; font-size: 1.2rem; line-height: 2; text-wrap: balance; }
-.overall .ko { font-family: var(--f-ko); font-size: .96rem; text-wrap: pretty; }
+.overall .head { font-family: var(--f-ko); font-weight: 700; font-size: 1.24rem; line-height: 1.5; text-wrap: balance; }
+.overall .text { font-family: var(--f-ko); font-size: .96rem; text-wrap: pretty; }
 
 .items { display: grid; }
 .item {
@@ -326,21 +325,21 @@ ruby rt { font-size: .5em; font-family: var(--f-ja); font-weight: 500; letter-sp
 }
 .item:last-child { border-bottom: 0; }
 .item dt { display: grid; align-content: start; justify-items: center; gap: 2px; padding-top: 4px; }
-.item dt .ja {
-  font-family: var(--f-ja);
+.item dt .ko {
+  font-family: var(--f-ko);
   font-weight: 700;
-  font-size: 1.1rem;
-  line-height: 1.8;
+  font-size: .98rem;
+  line-height: 1.9;
   color: var(--shu-ink);
   border: 1px solid var(--shu-ink);
   padding: 0 6px;
   width: 100%;
   text-align: center;
 }
-.item dt .ko { font-size: .78rem; color: var(--sumi-soft); }
+.item dt .ja { font-family: var(--f-ja); font-size: .78rem; color: var(--sumi-soft); }
 .item dd { min-width: 0; display: grid; gap: 3px; }
-.item dd .ja { font-family: var(--f-ja); font-weight: 700; font-size: 1.06rem; line-height: 2; text-wrap: pretty; }
-.item dd .ko { font-family: var(--f-ko); font-size: .93rem; line-height: 1.6; }
+.item dd .head { font-family: var(--f-ko); font-weight: 700; font-size: 1.04rem; line-height: 1.5; text-wrap: pretty; }
+.item dd .text { font-family: var(--f-ko); font-size: .93rem; line-height: 1.6; }
 
 .custom {
   font-family: var(--f-ko);
@@ -372,19 +371,6 @@ ruby rt { font-size: .5em; font-family: var(--f-ja); font-weight: 500; letter-sp
 }
 
 .actions { display: grid; justify-items: center; gap: 12px; }
-.toggle {
-  appearance: none;
-  border: 0;
-  background: none;
-  color: var(--kinari);
-  font: inherit;
-  font-size: .88rem;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-  padding: 6px;
-}
-.toggle:focus-visible { outline: 2px dashed var(--kinari); outline-offset: 2px; }
 
 /* ---------- 묶기(結ぶ) 화면 ---------- */
 .tied { flex: 1; display: grid; align-content: center; justify-items: center; gap: 14px; text-align: center; padding-top: 30px; }
@@ -526,8 +512,8 @@ ruby rt { font-size: .5em; font-family: var(--f-ja); font-weight: 500; letter-sp
         </div>
 
         <section class="overall" aria-label="총운">
-          <p class="ja" lang="ja" id="overall-ja"></p>
-          <p class="ko" id="overall-ko"></p>
+          <p class="head" id="overall-head"></p>
+          <p class="text" id="overall-text"></p>
         </section>
 
         <dl class="items" id="items"></dl>
@@ -544,7 +530,6 @@ ruby rt { font-size: .5em; font-family: var(--f-ja); font-weight: 500; letter-sp
       <button class="btn" id="again-1" type="button">
         <span class="ja" lang="ja">もう一度引く</span><small>다시 뽑기</small>
       </button>
-      <button class="toggle" id="ruby-toggle" type="button" aria-pressed="true">후리가나 숨기기</button>
     </div>
   </section>
 
@@ -580,190 +565,191 @@ const CONFIG = {
   seed: 2026,                  // 번호 ↔ 운세 배치를 정하는 값. 바꾸면 배치가 새로 섞임
 };
 
-// 운세 항목. 일본어는 「한자{읽기}」로 쓰면 후리가나가 붙습니다.
+// 운세 항목. ja는 항목 이름 아래 작게 나오는 일본어 단어입니다.
 const CATEGORIES = [
-  { key: 'love',   ja: '恋愛{れんあい}',   ko: '연애운' },
-  { key: 'study',  ja: '学業{がくぎょう}', ko: '학업운' },
-  { key: 'health', ja: '健康{けんこう}',   ko: '건강운' },
-  { key: 'money',  ja: '金運{きんうん}',   ko: '금전운' },
+  { key: 'love',   ko: '연애운', ja: '恋愛' },
+  { key: 'study',  ko: '학업운', ja: '学業' },
+  { key: 'health', ko: '건강운', ja: '健康' },
+  { key: 'money',  ko: '금전운', ja: '金運' },
 ];
 
 // 운세 단계. sticks = 막대 개수(합계가 전체 막대 수 = 번호 범위).
-// 각 항목은 문구 3개 중 하나가 막대 번호에 따라 고정으로 정해집니다.
+// 문구는 head(굵은 한 줄) + text(풀이). 항목마다 3개 중 하나가 막대 번호에 따라 고정으로 정해집니다.
+// meaning의 「한자{읽기}」는 후리가나로 표시됩니다.
 const LEVELS = [
   {
     kanji: '大吉', kana: 'だいきち', ko: '대길', sticks: 15, bad: false,
     meaning: '大{だい}=크다, 吉{きち}=좋은 운. 가장 좋은 운세예요!',
-    overall: { ja: '何事{なにごと}も思{おも}いのままに進{すす}む', ko: '무엇이든 마음먹은 대로 술술 풀리는 최고의 운이에요. 하고 싶었던 일에 도전해 보세요.' },
+    overall: { head: '무엇이든 마음먹은 대로', text: '하는 일마다 술술 풀리는 최고의 운이에요. 미뤄 둔 일이 있다면 지금 도전해 보세요.' },
     love: [
-      { ja: '思{おも}いは必{かなら}ず通{つう}じる', ko: '마음은 반드시 전해져요. 용기를 내서 먼저 다가가 보세요!' },
-      { ja: '良{よ}き縁{えん}あり', ko: '좋은 인연이 찾아와요. 새로운 만남을 기대해도 좋아요.' },
-      { ja: 'この人{ひと}より他{ほか}になし', ko: '지금 마음속 그 사람이 바로 운명의 상대! 믿고 가도 좋아요.' },
+      { head: '마음은 반드시 통한다', text: '용기를 내서 먼저 다가가 보세요. 생각보다 반응이 좋을 거예요!' },
+      { head: '좋은 인연이 온다', text: '새로운 만남이 기다리고 있어요. 새 학기, 새 모임을 기대해도 좋아요.' },
+      { head: '이 사람 말고는 없다', text: '지금 마음속 그 사람이 바로 운명의 상대! 믿고 가도 좋아요.' },
     ],
     study: [
-      { ja: '努力{どりょく}は実{み}を結{むす}ぶ', ko: '노력한 만큼 확실히 결과가 나와요. 이번 시험, 기대해도 좋아요!' },
-      { ja: '安心{あんしん}して勉学{べんがく}せよ', ko: '걱정 말고 공부에 집중하세요. 배운 것이 쏙쏙 머리에 들어와요.' },
-      { ja: '思{おも}わぬ才能{さいのう}が花開{はなひら}く', ko: '생각지도 못한 재능이 꽃피어요. 새로운 과목이나 취미에 도전해 보세요!' },
+      { head: '노력이 열매를 맺는다', text: '한 만큼 확실히 결과가 나와요. 이번 시험, 기대해도 좋아요!' },
+      { head: '안심하고 공부하라', text: '걱정은 내려놓고 집중만 하면 돼요. 배운 것이 쏙쏙 머리에 들어와요.' },
+      { head: '숨은 재능이 꽃핀다', text: '생각지도 못한 재능을 발견해요. 새로운 과목이나 취미에 도전해 보세요!' },
     ],
     health: [
-      { ja: '心身{しんしん}ともに健{すこ}やか', ko: '몸도 마음도 아주 건강해요. 지금 컨디션을 그대로 유지해요!' },
-      { ja: '病{やまい}は軽{かる}くすぐ治{なお}る', ko: '아파도 금방 나아요. 그래도 잠은 충분히 자요.' },
-      { ja: '元気{げんき}いっぱい、何{なん}でもできる', ko: '에너지가 넘치는 시기! 운동을 시작하기에 딱 좋아요.' },
+      { head: '몸도 마음도 튼튼', text: '컨디션 최고! 지금 생활 습관을 그대로 유지해요.' },
+      { head: '아파도 금방 낫는다', text: '잔병치레가 있어도 금방 털고 일어나요. 그래도 잠은 충분히!' },
+      { head: '에너지가 넘친다', text: '운동을 시작하기에 딱 좋은 때예요. 뭐든 해낼 수 있어요.' },
     ],
     money: [
-      { ja: '思{おも}わぬ臨時収入{りんじしゅうにゅう}あり', ko: '뜻밖의 용돈이 생길지도 몰라요!' },
-      { ja: '懐{ふところ}が温{あたた}かくなる', ko: '주머니가 두둑해지는 시기예요. 그래도 저축은 잊지 마세요.' },
-      { ja: '買{か}い物{もの}に吉{きち}あり', ko: '쇼핑운 최고! 오래 갖고 싶던 물건을 좋은 가격에 만날 수 있어요.' },
+      { head: '뜻밖의 용돈이 들어온다', text: '생각지도 못한 곳에서 용돈이 생길지도 몰라요!' },
+      { head: '주머니가 두둑해진다', text: '돈이 모이는 시기예요. 그래도 저축은 잊지 마세요.' },
+      { head: '쇼핑운 최고', text: '오래 갖고 싶던 물건을 좋은 가격에 만날 수 있어요.' },
     ],
   },
   {
     kanji: '吉', kana: 'きち', ko: '길', sticks: 20, bad: false,
     meaning: '吉{きち}=좋다, 운이 좋다. 대길 다음으로 좋은 운세예요.',
-    overall: { ja: '穏{おだ}やかな幸{しあわ}せが続{つづ}く', ko: '잔잔하고 따뜻한 행운이 이어져요. 평소처럼 성실하게 지내면 좋은 일이 찾아와요.' },
+    overall: { head: '잔잔한 행복이 이어진다', text: '따뜻한 행운이 계속돼요. 평소처럼 성실하게 지내면 좋은 일이 찾아와요.' },
     love: [
-      { ja: '焦{あせ}らず待{ま}てば叶{かな}う', ko: '서두르지 않고 기다리면 이루어져요. 자연스러운 모습이 가장 매력적이에요.' },
-      { ja: '友情{ゆうじょう}から恋{こい}が芽生{めば}える', ko: '친구 사이에서 설렘이 싹틀지도? 가까운 사람을 다시 한번 봐요.' },
-      { ja: '笑顔{えがお}が良縁{りょうえん}を呼{よ}ぶ', ko: '웃는 얼굴이 좋은 인연을 불러와요. 많이 웃어요!' },
+      { head: '서두르지 않으면 이루어진다', text: '기다리면 기회가 와요. 자연스러운 모습이 가장 매력적이에요.' },
+      { head: '우정이 설렘으로 바뀐다', text: '친구 사이에서 설렘이 싹틀지도? 가까운 사람을 다시 한번 봐요.' },
+      { head: '웃는 얼굴이 인연을 부른다', text: '많이 웃을수록 좋은 사람이 다가와요.' },
     ],
     study: [
-      { ja: 'こつこつ続{つづ}ければ伸{の}びる', ko: '꾸준히 하면 쭉쭉 늘어요. 하루 10분이라도 매일!' },
-      { ja: '友{とも}と学{まな}べば吉{きち}', ko: '친구와 함께 공부하면 효과가 두 배! 서로 문제를 내 봐요.' },
-      { ja: '得意科目{とくいかもく}をさらに磨{みが}け', ko: '잘하는 과목을 더 갈고닦으면 자신감이 붙어요.' },
+      { head: '꾸준함이 실력이 된다', text: '하루 10분이라도 매일 하면 쭉쭉 늘어요.' },
+      { head: '친구와 함께하면 좋다', text: '같이 공부하면 효과가 두 배! 서로 문제를 내 봐요.' },
+      { head: '잘하는 과목을 더 갈고닦아라', text: '자신 있는 과목에서 점수를 올리면 자신감이 붙어요.' },
     ],
     health: [
-      { ja: '規則正{きそくただ}しい生活{せいかつ}で良{よ}し', ko: '규칙적인 생활만 지키면 문제없어요.' },
-      { ja: 'よく眠{ねむ}れば元気{げんき}になる', ko: '푹 자는 것이 최고의 보약! 오늘은 일찍 자 봐요.' },
-      { ja: '体{からだ}を動{うご}かすと吉{きち}', ko: '몸을 움직이면 기분도 좋아져요. 산책이나 스트레칭 추천!' },
+      { head: '규칙적인 생활이면 문제없다', text: '제때 먹고 제때 자기만 지켜도 건강해요.' },
+      { head: '잘 자면 힘이 난다', text: '푹 자는 것이 최고의 보약! 오늘은 일찍 자 봐요.' },
+      { head: '몸을 움직이면 좋다', text: '산책이나 스트레칭을 하면 기분까지 상쾌해져요.' },
     ],
     money: [
-      { ja: '無駄遣{むだづか}いせねば困{こま}らず', ko: '낭비만 하지 않으면 돈 걱정은 없어요.' },
-      { ja: '小{ちい}さな幸運{こううん}あり', ko: '편의점 1+1 같은 소소한 행운이 찾아와요!' },
-      { ja: '貯{た}めれば増{ふ}える', ko: '조금씩 모으면 어느새 불어나 있어요. 저금통을 준비해요!' },
+      { head: '낭비만 안 하면 걱정 없다', text: '필요한 것만 사면 돈 걱정은 없어요.' },
+      { head: '작은 행운이 있다', text: '편의점 1+1 같은 소소한 행운이 찾아와요!' },
+      { head: '모으면 불어난다', text: '조금씩 모으면 어느새 불어나 있어요. 저금통을 준비해요!' },
     ],
   },
   {
     kanji: '中吉', kana: 'ちゅうきち', ko: '중길', sticks: 20, bad: false,
     meaning: '中{ちゅう}=가운데. 적당히 좋은, 중간 크기의 행운이에요.',
-    overall: { ja: '努力{どりょく}次第{しだい}で運{うん}が開{ひら}ける', ko: '노력하는 만큼 운이 활짝 열려요. 지금의 노력이 곧 행운으로 돌아와요.' },
+    overall: { head: '노력한 만큼 운이 열린다', text: '지금의 노력이 곧 행운으로 돌아와요. 조금만 더 힘내요.' },
     love: [
-      { ja: '素直{すなお}になれば進展{しんてん}あり', ko: '솔직해지면 관계가 한 걸음 나아가요.' },
-      { ja: '待{ま}ち人{びと}は遅{おく}れて来{く}る', ko: '기다리는 사람은 조금 늦게 와요. 조급해하지 말아요.' },
-      { ja: '話{はな}しかければ縁{えん}が深{ふか}まる', ko: '먼저 말을 걸면 인연이 깊어져요. 인사부터 시작해 봐요!' },
+      { head: '솔직하면 가까워진다', text: '마음을 솔직하게 표현하면 관계가 한 걸음 나아가요.' },
+      { head: '기다리는 사람은 늦게 온다', text: '조금 늦어도 꼭 와요. 조급해하지 말아요.' },
+      { head: '먼저 말을 걸어라', text: '인사 한마디부터 시작하면 인연이 깊어져요.' },
     ],
     study: [
-      { ja: '苦手{にがて}を克服{こくふく}する好機{こうき}', ko: '약한 과목을 극복할 절호의 기회예요.' },
-      { ja: '復習{ふくしゅう}を怠{おこた}るな', ko: '복습을 게을리하지 마세요. 오늘 배운 건 오늘 다시 보기!' },
-      { ja: '目標{もくひょう}を決{き}めれば道{みち}が開{ひら}ける', ko: '목표를 정하면 길이 보여요. 작은 목표부터 세워 봐요.' },
+      { head: '약한 과목을 극복할 기회', text: '미뤄 둔 과목을 붙잡기 딱 좋은 때예요.' },
+      { head: '복습을 게을리하지 마라', text: '오늘 배운 건 오늘 다시 보기! 그게 제일 빨라요.' },
+      { head: '목표를 정하면 길이 보인다', text: '작은 목표부터 하나씩 세워 봐요.' },
     ],
     health: [
-      { ja: '食事{しょくじ}に気{き}をつけよ', ko: '식사를 잘 챙기세요. 아침밥은 꼭!' },
-      { ja: '疲{つか}れたら早{はや}めに休{やす}め', ko: '피곤할 땐 일찍 쉬어 주세요. 무리는 금물!' },
-      { ja: '水{みず}をよく飲{の}むと良{よ}し', ko: '물을 자주 마시면 컨디션이 좋아져요.' },
+      { head: '식사를 잘 챙겨라', text: '아침밥은 꼭 먹어요. 군것질은 조금만!' },
+      { head: '피곤하면 일찍 쉬어라', text: '무리하지 말고 쉴 때는 확실히 쉬어요.' },
+      { head: '물을 자주 마셔라', text: '물만 잘 마셔도 컨디션이 좋아져요.' },
     ],
     money: [
-      { ja: '計画的{けいかくてき}に使{つか}えば吉{きち}', ko: '계획을 세워서 쓰면 좋아요. 용돈 기입장을 써 볼까요?' },
-      { ja: '欲{ほ}しい物{もの}は少{すこ}し待{ま}て', ko: '갖고 싶은 물건은 조금만 기다려요. 더 좋은 기회가 와요.' },
-      { ja: '人{ひと}への親切{しんせつ}が福{ふく}を呼{よ}ぶ', ko: '남에게 베푼 친절이 복이 되어 돌아와요.' },
+      { head: '계획적으로 쓰면 좋다', text: '용돈 기입장을 써 보면 돈이 새는 곳이 보여요.' },
+      { head: '갖고 싶은 건 조금 기다려라', text: '조금만 참으면 더 좋은 기회가 와요.' },
+      { head: '친절이 복이 되어 돌아온다', text: '남에게 베푼 작은 친절이 행운으로 돌아와요.' },
     ],
   },
   {
     kanji: '小吉', kana: 'しょうきち', ko: '소길', sticks: 15, bad: false,
     meaning: '小{しょう}=작다. 작지만 확실한 행운이에요.',
-    overall: { ja: '小{ちい}さな幸{しあわ}せを大切{たいせつ}に', ko: '작지만 확실한 행운이 있어요. 소소한 기쁨을 놓치지 마세요.' },
+    overall: { head: '작은 행복을 소중히', text: '작지만 확실한 행운이 있어요. 소소한 기쁨을 놓치지 마세요.' },
     love: [
-      { ja: '小{ちい}さなきっかけを逃{のが}すな', ko: '작은 계기를 놓치지 마세요. 눈이 마주치면 웃어 주기!' },
-      { ja: '相手{あいて}の話{はなし}をよく聞{き}け', ko: '상대의 이야기에 귀 기울이면 마음이 가까워져요.' },
-      { ja: 'ゆっくり近{ちか}づくのが吉{きち}', ko: '천천히 다가가는 게 좋아요. 급할수록 돌아가요!' },
+      { head: '작은 계기를 놓치지 마라', text: '눈이 마주치면 웃어 주기! 그게 시작이에요.' },
+      { head: '상대의 말에 귀 기울여라', text: '잘 들어 주기만 해도 마음이 가까워져요.' },
+      { head: '천천히 다가가라', text: '급할수록 돌아가요. 천천히가 정답!' },
     ],
     study: [
-      { ja: '基礎{きそ}を固{かた}めよ', ko: '기초를 단단히! 교과서 예제부터 다시 풀어 봐요.' },
-      { ja: '早起{はやお}きして学{まな}べば吉{きち}', ko: '아침 공부가 잘 맞는 시기예요. 10분만 일찍 일어나 봐요.' },
-      { ja: 'ノートを整理{せいり}すると良{よ}し', ko: '노트를 정리하면 머릿속도 정리돼요.' },
+      { head: '기초를 다져라', text: '교과서 예제부터 다시 풀어 봐요.' },
+      { head: '아침 공부가 좋다', text: '10분만 일찍 일어나서 공부해 봐요. 머리가 맑아요.' },
+      { head: '노트를 정리하라', text: '노트를 정리하면 머릿속도 정리돼요.' },
     ],
     health: [
-      { ja: '夜更{よふ}かしは控{ひか}えよ', ko: '밤늦게까지 폰 보는 건 줄여요. 잠이 보약!' },
-      { ja: '軽{かる}い運動{うんどう}を続{つづ}けよ', ko: '가벼운 운동을 꾸준히 하면 좋아요.' },
-      { ja: '冷{ひ}えに気{き}をつけよ', ko: '몸이 차가워지지 않게 따뜻하게 입어요.' },
+      { head: '밤샘은 피하라', text: '밤늦게까지 폰 보는 건 줄여요. 잠이 보약!' },
+      { head: '가벼운 운동을 꾸준히', text: '매일 조금씩 몸을 움직이면 좋아요.' },
+      { head: '몸을 따뜻하게', text: '감기 조심! 따뜻하게 입고 다녀요.' },
     ],
     money: [
-      { ja: '小銭{こぜに}を大切{たいせつ}に', ko: '동전 하나도 소중히! 티끌 모아 태산이에요.' },
-      { ja: '衝動買{しょうどうが}いに注意{ちゅうい}', ko: '충동구매 주의! 장바구니에 하루 묵혀 두기.' },
-      { ja: 'なくした物{もの}は見{み}つかる', ko: '잃어버린 물건을 다시 찾게 돼요. 가방 구석을 뒤져 봐요!' },
+      { head: '동전 하나도 소중히', text: '티끌 모아 태산이에요.' },
+      { head: '충동구매 주의', text: '장바구니에 하루 묵혀 두고 다시 생각해 봐요.' },
+      { head: '잃어버린 물건을 찾는다', text: '없어진 줄 알았던 물건이 나타나요. 가방 구석을 뒤져 봐요!' },
     ],
   },
   {
     kanji: '末吉', kana: 'すえきち', ko: '말길', sticks: 15, bad: false,
     meaning: '末{すえ}=끝, 나중. 지금보다 나중에 점점 좋아지는 운이에요.',
-    overall: { ja: '今{いま}は種{たね}まきの時{とき}、後{のち}に花{はな}咲{さ}く', ko: '지금은 씨앗을 뿌리는 시기. 시간이 지나면 꽃이 피는, 천천히 오는 행운이에요.' },
+    overall: { head: '지금 씨를 뿌리면 나중에 꽃핀다', text: '시간이 지날수록 좋아지는, 천천히 오는 행운이에요.' },
     love: [
-      { ja: '時{とき}が経{た}てば想{おも}いは届{とど}く', ko: '시간이 지나면 마음이 전해져요. 지금은 나를 가꾸는 시간!' },
-      { ja: '今{いま}は自分磨{じぶんみが}きの時{とき}', ko: '지금은 자기 자신을 갈고닦을 때예요.' },
-      { ja: '焦{あせ}れば遠{とお}ざかる', ko: '서두르면 멀어져요. 한 걸음 물러서서 지켜봐요.' },
+      { head: '시간이 지나면 마음이 전해진다', text: '조급해하지 않으면 언젠가 꼭 닿아요.' },
+      { head: '지금은 나를 가꿀 때', text: '내가 빛나면 좋은 인연은 따라와요.' },
+      { head: '서두르면 멀어진다', text: '한 걸음 물러서서 지켜봐요.' },
     ],
     study: [
-      { ja: '後半{こうはん}に伸{の}びる', ko: '처음엔 어려워도 뒤로 갈수록 실력이 쑥 올라요.' },
-      { ja: '諦{あきら}めなければ結果{けっか}が出{で}る', ko: '포기하지 않으면 결과가 나와요. 끝까지 힘내요!' },
-      { ja: '間違{まちが}いから学{まな}べ', ko: '틀린 문제가 최고의 선생님! 오답 노트를 만들어 봐요.' },
+      { head: '뒤로 갈수록 오른다', text: '처음엔 어려워도 갈수록 실력이 쑥 올라요.' },
+      { head: '포기하지 않으면 결과가 나온다', text: '끝까지 힘내요! 마지막에 웃는 사람이 돼요.' },
+      { head: '틀린 문제에서 배워라', text: '오답 노트를 만들어 봐요. 틀린 문제가 최고의 선생님!' },
     ],
     health: [
-      { ja: '無理{むり}をせず休{やす}め', ko: '무리하지 말고 쉬어 가요.' },
-      { ja: '姿勢{しせい}に気{き}をつけよ', ko: '자세에 신경 써요. 거북목 주의!' },
-      { ja: '少{すこ}しずつ回復{かいふく}する', ko: '조금씩 회복되고 있어요. 천천히 좋아져요.' },
+      { head: '무리하지 말고 쉬어라', text: '쉬어 가는 것도 실력이에요.' },
+      { head: '자세를 바르게', text: '거북목 주의! 폰은 눈높이로 들고 봐요.' },
+      { head: '조금씩 회복된다', text: '천천히, 하지만 확실히 좋아지고 있어요.' },
     ],
     money: [
-      { ja: '今{いま}は貯{た}める時{とき}', ko: '지금은 모으는 시기예요. 큰 지출은 미뤄요.' },
-      { ja: '貸{か}し借{か}りは控{ひか}えよ', ko: '돈을 빌려주거나 빌리는 건 피해요.' },
-      { ja: '後{のち}に良{よ}い知{し}らせあり', ko: '나중에 좋은 소식이 있어요. 기대해요!' },
+      { head: '지금은 모을 때', text: '큰 지출은 조금 미뤄요.' },
+      { head: '돈 거래는 피하라', text: '친구 사이라도 돈을 빌리고 빌려주는 건 조심해요.' },
+      { head: '나중에 좋은 소식이 있다', text: '기다리면 기쁜 일이 생겨요.' },
     ],
   },
   {
     kanji: '凶', kana: 'きょう', ko: '흉', sticks: 10, bad: true,
     meaning: '凶{きょう}=나쁜 운. 하지만 "조심하면 괜찮다"는 신의 조언이에요.',
-    overall: { ja: '慎{つつし}めば災{わざわ}いは去{さ}る', ko: '조심하면 나쁜 일은 지나가요. 오늘은 차분하고 신중하게!' },
+    overall: { head: '조심하면 나쁜 일은 지나간다', text: '오늘은 차분하고 신중하게! 조심하라는 신의 조언이에요.' },
     love: [
-      { ja: '今{いま}は待{ま}つべし', ko: '지금은 기다릴 때예요. 고백은 잠시 미뤄 둬요.' },
-      { ja: '言葉{ことば}に気{き}をつけよ', ko: '말 한마디에 오해가 생길 수 있어요. 부드럽게 말해요.' },
-      { ja: '誤解{ごかい}は誠意{せいい}で解{と}ける', ko: '오해가 생겨도 진심을 보이면 풀려요.' },
+      { head: '지금은 기다려라', text: '고백은 잠시 미뤄 두는 게 좋아요.' },
+      { head: '말을 조심하라', text: '말 한마디에 오해가 생길 수 있어요. 부드럽게 말해요.' },
+      { head: '오해는 진심으로 풀린다', text: '오해가 생겨도 진심을 보이면 괜찮아져요.' },
     ],
     study: [
-      { ja: '油断大敵{ゆだんたいてき}', ko: '방심은 금물! 다 안다고 생각할 때가 제일 위험해요.' },
-      { ja: '忘{わす}れ物{もの}に注意{ちゅうい}', ko: '준비물, 숙제 챙겼나요? 자기 전에 가방 확인!' },
-      { ja: '基本{きほん}に戻{もど}れば道{みち}あり', ko: '막힐 땐 기본으로 돌아가면 길이 보여요.' },
+      { head: '방심은 금물', text: '다 안다고 생각할 때가 제일 위험해요.' },
+      { head: '준비물을 챙겨라', text: '숙제랑 준비물, 자기 전에 가방 확인!' },
+      { head: '막히면 기본으로 돌아가라', text: '어려울 땐 기본 개념부터 다시 보면 길이 보여요.' },
     ],
     health: [
-      { ja: '足元{あしもと}に注意{ちゅうい}せよ', ko: '발밑 조심! 계단에서는 폰 보지 않기.' },
-      { ja: '睡眠不足{すいみんぶそく}に注意{ちゅうい}', ko: '잠이 부족하면 컨디션이 무너져요. 오늘은 일찍 자요.' },
-      { ja: '無理{むり}は禁物{きんもつ}', ko: '무리는 절대 금물! 아프면 꼭 쉬어요.' },
+      { head: '발밑을 조심하라', text: '계단에서는 폰 보지 않기!' },
+      { head: '잠이 부족하면 탈이 난다', text: '오늘은 꼭 일찍 자요.' },
+      { head: '무리는 절대 금물', text: '아프면 참지 말고 꼭 쉬어요.' },
     ],
     money: [
-      { ja: '財布{さいふ}を落{お}とさぬよう用心{ようじん}せよ', ko: '지갑, 교통카드 분실 주의!' },
-      { ja: '出費{しゅっぴ}多{おお}し、節約{せつやく}せよ', ko: '나갈 돈이 많은 시기예요. 아껴 써요.' },
-      { ja: 'うまい話{はなし}に乗{の}るな', ko: '너무 좋은 이야기에는 함정이 있을 수도. 신중하게!' },
+      { head: '지갑을 잃어버리지 않게', text: '지갑, 교통카드 분실 주의!' },
+      { head: '나갈 돈이 많다', text: '꼭 필요한 데만 쓰고 아껴요.' },
+      { head: '너무 좋은 이야기는 의심하라', text: '공짜라는 말에 함정이 있을 수도 있어요.' },
     ],
   },
   {
     kanji: '大凶', kana: 'だいきょう', ko: '대흉', sticks: 5, bad: true,
     meaning: '大凶{だいきょう}은 아주 드문 운세! 바닥을 찍었으니 이제 올라갈 일만 남았어요.',
-    overall: { ja: 'これより先{さき}は上{あ}がるのみ', ko: '지금이 바닥이에요. 여기서부터는 올라갈 일만 남았어요!' },
+    overall: { head: '여기서부터는 올라갈 일만 남았다', text: '지금이 바닥이에요. 대흉은 아주 드물게 나오는 운세라 오히려 특별하답니다.' },
     love: [
-      { ja: '今{いま}は静{しず}かに見守{みまも}れ', ko: '지금은 조용히 지켜볼 때예요. 다음 기회가 꼭 와요.' },
-      { ja: '自分{じぶん}を大切{たいせつ}にせよ', ko: '남보다 나 자신을 먼저 아껴 주세요. 그게 다음 인연을 부르는 힘!' },
-      { ja: '嵐{あらし}の後{あと}に晴{は}れ間{ま}あり', ko: '폭풍 뒤에는 맑은 하늘이 와요. 조금만 버텨요.' },
+      { head: '지금은 조용히 지켜봐라', text: '다음 기회가 꼭 와요.' },
+      { head: '나 자신을 먼저 아껴라', text: '내가 나를 아낄 때 좋은 인연이 찾아와요.' },
+      { head: '폭풍 뒤에 맑은 하늘', text: '조금만 버티면 금방 좋아져요.' },
     ],
     study: [
-      { ja: '一{いち}からやり直{なお}せ', ko: '처음부터 다시 시작해도 괜찮아요. 지금이 기회!' },
-      { ja: '人{ひと}に教{おし}えを乞{こ}え', ko: '모르는 건 선생님이나 친구에게 바로 물어봐요.' },
-      { ja: '今日{きょう}の努力{どりょく}が明日{あした}を変{か}える', ko: '오늘의 노력이 내일을 바꿔요. 딱 한 문제만 더!' },
+      { head: '처음부터 다시 시작하라', text: '다시 시작해도 괜찮아요. 지금이 기회!' },
+      { head: '모르면 바로 물어라', text: '선생님이나 친구에게 물어보는 게 제일 빨라요.' },
+      { head: '오늘의 노력이 내일을 바꾼다', text: '딱 한 문제만 더 풀어 봐요.' },
     ],
     health: [
-      { ja: '体{からだ}の声{こえ}を聞{き}け', ko: '몸이 보내는 신호에 귀 기울여요. 피곤하면 쉬기!' },
-      { ja: '怪我{けが}に注意{ちゅうい}せよ', ko: '다치지 않게 조심! 체육 시간엔 준비 운동을 꼭 해요.' },
-      { ja: '心{こころ}を休{やす}めよ', ko: '마음도 쉬어야 해요. 좋아하는 음악을 들으며 쉬어 가요.' },
+      { head: '몸이 보내는 신호를 들어라', text: '피곤하면 쉬어 가요.' },
+      { head: '다치지 않게 조심', text: '체육 시간엔 준비 운동을 꼭 해요.' },
+      { head: '마음도 쉬게 하라', text: '좋아하는 음악을 들으며 푹 쉬어요.' },
     ],
     money: [
-      { ja: '財布{さいふ}の紐{ひも}を締{し}めよ', ko: '지갑 끈을 꽉 묶어요! (財布の紐を締める = 돈을 아껴 쓰다)' },
-      { ja: '失{な}くし物{もの}に注意{ちゅうい}', ko: '물건을 잃어버리기 쉬운 날. 소지품에 이름을 붙여 둬요.' },
-      { ja: '今{いま}は守{まも}りに徹{てっ}せよ', ko: '지금은 지키는 데 집중! 큰돈은 쓰지 않기.' },
+      { head: '지갑을 꽁꽁 닫아라', text: '꼭 필요한 것만 사기!' },
+      { head: '물건 분실 주의', text: '소지품에 이름을 붙여 둬요.' },
+      { head: '지금은 지키는 데 집중', text: '큰돈은 쓰지 않기로 해요.' },
     ],
   },
 ];
@@ -920,14 +906,14 @@ function renderSlip(n) {
   $('meaning').innerHTML = ruby(esc(lv.meaning));
   $('ladder').innerHTML = LEVELS.map((l, i) =>
     `<li${i === stick.level ? ' aria-current="true"' : ''}>${l.kanji}</li>`).join('');
-  $('overall-ja').innerHTML = `「${ruby(esc(lv.overall.ja))}」`;
-  $('overall-ko').textContent = lv.overall.ko;
+  $('overall-head').textContent = `「${lv.overall.head}」`;
+  $('overall-text').textContent = lv.overall.text;
   $('items').innerHTML = CATEGORIES.map((c, i) => {
     const list = lv[c.key];
     const line = list[stick.picks[i] % list.length];
     return `<div class="item">
-      <dt><span class="ja" lang="ja">${ruby(esc(c.ja))}</span><span class="ko">${esc(c.ko)}</span></dt>
-      <dd><p class="ja" lang="ja">${ruby(esc(line.ja))}</p><p class="ko">${esc(line.ko)}</p></dd>
+      <dt><span class="ko">${esc(c.ko)}</span><span class="ja" lang="ja">${esc(c.ja)}</span></dt>
+      <dd><p class="head">${esc(line.head)}</p><p class="text">${esc(line.text)}</p></dd>
     </div>`;
   }).join('');
   $('custom').innerHTML = ruby(lv.bad ? CUSTOM.bad : CUSTOM.good);
@@ -1026,18 +1012,6 @@ $('open-slip').addEventListener('click', openSlip);
 $('tie').addEventListener('click', tie);
 $('again-1').addEventListener('click', reset);
 $('again-2').addEventListener('click', reset);
-
-const rubyToggle = $('ruby-toggle');
-function setRuby(on) {
-  document.body.classList.toggle('no-ruby', !on);
-  rubyToggle.setAttribute('aria-pressed', String(on));
-  rubyToggle.textContent = on ? '후리가나 숨기기' : '후리가나 보이기';
-  try { localStorage.setItem('omikuji-ruby', on ? '1' : '0'); } catch (e) {}
-}
-rubyToggle.addEventListener('click', () => setRuby(document.body.classList.contains('no-ruby')));
-let rubyPref = true;
-try { rubyPref = localStorage.getItem('omikuji-ruby') !== '0'; } catch (e) {}
-setRuby(rubyPref);
 
 buildGauge();
 </script>
