@@ -26,11 +26,12 @@
 1. [Cloudflare 대시보드](https://dash.cloudflare.com/?to=/:account/workers-and-pages) → **Workers & Pages** → **Create application**
 2. **GitHub** 선택 → `ykorttt/for-you-codex` 저장소 선택 (처음이면 GitHub 연결 권한을 허용)
 3. 설정 화면에서
-   - 프로젝트 이름: `omikuji`
+   - 프로젝트 이름: 기본값 `for-you-codex` 그대로 (`wrangler.jsonc`의 `name`과 같아야 함)
    - 브랜치: 이 파일이 있는 브랜치 (`main`이 비어 있다면 꼭 바꾸기)
    - Build command: 비워 두기
    - Deploy command: `npx wrangler deploy` (기본값 그대로)
-4. **Save and Deploy** → 1분쯤 뒤 `https://omikuji.<내 계정 이름>.workers.dev` 로 접속
+4. **Save and Deploy** → 1분쯤 뒤 `https://for-you-codex.<내 계정 이름>.workers.dev` 로 접속
+   (주소는 Workers & Pages → `for-you-codex` 화면의 **Visit** 버튼에서도 볼 수 있어요)
 
 `index.html`만 공개되고 README·설정 파일은 올라가지 않습니다(`.assetsignore`).
 
