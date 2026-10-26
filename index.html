@@ -1,0 +1,1045 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>오미쿠지 시뮬레이터</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#b8321e">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=Shippori+Mincho:wght@500;700&family=Yuji+Syuku&display=swap">
+<style>
+/* Layout: 폰 폭 한 줄 화면. 뽑기 화면은 신사(주홍색 바탕·시메나와·나무 통), 결과는 한 장의 오미쿠지 종이 */
+:root {
+  --shu: #b8321e;         /* 도리이 주홍, 바탕 */
+  --shu-dark: #7e1d10;    /* 바탕 가장자리 */
+  --shu-ink: #ad2a16;     /* 종이에 찍힌 주홍 인쇄 */
+  --paper: #fbf8f1;       /* 오미쿠지 종이 */
+  --sumi: #231c18;        /* 먹 */
+  --sumi-soft: #6e6058;   /* 옅은 먹 */
+  --kinari: #fff3df;      /* 주홍 위 글자 */
+  --kinari-dim: rgba(255, 243, 223, .72);
+  --kin: #efc062;         /* 금색, 채워진 게이지 */
+  --wood-top: #efcb94;
+  --wood-front: #dba768;
+  --wood-left: #c08a4e;
+  --wood-right: #a7713c;
+  --wood-line: rgba(110, 64, 24, .18);
+  --straw: #dcbc78;
+  --straw-dark: #a9873f;
+  --rule: rgba(35, 28, 24, .16);
+
+  --f-brush: "Yuji Syuku", "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --f-ja: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", "Gowun Batang", serif;
+  --f-ko: "Gowun Batang", "Shippori Mincho", "AppleMyungjo", "Nanum Myeongjo", serif;
+  --f-ui: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", "Shippori Mincho", sans-serif;
+
+  color-scheme: light;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html { box-sizing: border-box; height: 100%; }
+*, *::before, *::after { box-sizing: inherit; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--shu);
+  color: var(--kinari);
+  font-family: var(--f-ui);
+  font-size: 16px;
+  line-height: 1.55;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  -webkit-tap-highlight-color: transparent;
+}
+[lang="ja"] { word-break: normal; }
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(130% 85% at 50% 32%, var(--shu) 0%, var(--shu) 42%, var(--shu-dark) 100%);
+}
+p, h1, h2, h3, dl, dd, ol { margin: 0; }
+ruby rt { font-size: .5em; font-family: var(--f-ja); font-weight: 500; letter-spacing: 0; }
+.no-ruby rt { display: none; }
+
+.app {
+  max-width: 440px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 8px 28px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- 시메나와(금줄)와 시데 ---------- */
+.rope {
+  position: relative;
+  height: 15px;
+  margin: 0 -8px;
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(-55deg, var(--straw) 0 7px, var(--straw-dark) 7px 9px, var(--straw) 9px 14px);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, .18);
+}
+.shide {
+  position: absolute;
+  top: 11px;
+  width: 22px;
+  height: 46px;
+  transform-origin: 50% 0;
+  animation: sway 4.5s ease-in-out infinite alternate;
+}
+.stage > .rope { align-self: stretch; }
+.shide polygon { fill: var(--paper); }
+.shide:nth-of-type(1) { left: 16%; }
+.shide:nth-of-type(2) { left: calc(50% - 11px); animation-delay: -1.6s; }
+.shide:nth-of-type(3) { right: 16%; animation-delay: -3s; }
+@keyframes sway { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+
+/* ---------- 뽑기 화면 ---------- */
+.stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.title {
+  margin-top: 42px;
+  text-align: center;
+}
+.title h1 {
+  font-family: var(--f-brush);
+  font-weight: 400;
+  font-size: clamp(2.4rem, 10vw, 3.2rem);
+  line-height: 1.1;
+  letter-spacing: .08em;
+}
+.subtitle {
+  font-size: .9rem;
+  color: var(--kinari-dim);
+  letter-spacing: .04em;
+}
+
+.box-area {
+  position: relative;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  width: 100%;
+}
+.box-btn {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 16px;
+  touch-action: manipulation;
+}
+.box-btn:focus-visible { outline: 2px dashed var(--kinari); outline-offset: 6px; }
+.box-btn svg {
+  display: block;
+  height: clamp(190px, 36vh, 320px);
+  width: auto;
+  max-width: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 10px 14px rgba(40, 6, 0, .35));
+}
+.box-flip { transition: transform .7s cubic-bezier(.5, -0.2, .3, 1.2); }
+.box-flip.flipped { transform: rotate(180deg); }
+.box-flip.instant, .box-flip.instant * { transition: none !important; }
+.box-jolt { animation: idle 3.2s ease-in-out infinite alternate; }
+.box-jolt.jolt { animation: jolt .32s ease-out; }
+.box-flip.flipped .box-jolt { animation: none; }
+@keyframes idle { from { transform: rotate(-1.5deg); } to { transform: rotate(1.5deg); } }
+@keyframes jolt {
+  0% { transform: rotate(0) translateY(0); }
+  25% { transform: rotate(-13deg) translate(-6px, -10px); }
+  55% { transform: rotate(10deg) translate(5px, -4px); }
+  80% { transform: rotate(-4deg) translateY(0); }
+  100% { transform: rotate(0); }
+}
+.stick-slide { transform: translateY(0); transition: transform .9s cubic-bezier(.2, .7, .2, 1); }
+.stick-slide.out { transform: translateY(-96px); }
+
+.pops { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.pop {
+  position: absolute;
+  font-family: var(--f-brush);
+  font-size: 1.5rem;
+  color: var(--kinari);
+  animation: pop .75s ease-out forwards;
+}
+@keyframes pop {
+  from { opacity: 0; transform: translateY(8px) scale(.8) rotate(var(--r, 0deg)); }
+  25% { opacity: 1; }
+  to { opacity: 0; transform: translateY(-34px) scale(1.1) rotate(var(--r, 0deg)); }
+}
+
+.control {
+  width: 100%;
+  min-height: 178px;
+  display: grid;
+  align-content: start;
+}
+.panel {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.gauge { display: flex; gap: 10px; height: 36px; align-items: end; }
+.gauge i {
+  width: 9px;
+  height: 30px;
+  border-radius: 5px 5px 2px 2px;
+  background: rgba(255, 243, 223, .22);
+  transition: background .2s, transform .2s;
+}
+.gauge i.on { background: var(--kin); transform: translateY(-5px); }
+.say { font-family: var(--f-ja); font-weight: 700; font-size: 1.35rem; letter-spacing: .04em; }
+.say-ko { font-size: 1rem; margin-top: -6px; }
+.hint { font-size: .82rem; color: var(--kinari-dim); max-width: 30ch; }
+
+.btn {
+  appearance: none;
+  display: inline-grid;
+  justify-items: center;
+  gap: 1px;
+  min-width: 12.5rem;
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: 1.5px solid var(--kinari);
+  background: transparent;
+  color: var(--kinari);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.3;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.btn small { font-size: .78rem; opacity: .85; }
+.btn .ja { font-family: var(--f-ja); font-weight: 700; font-size: 1.08rem; }
+.btn-primary { background: var(--paper); border-color: var(--paper); color: var(--sumi); box-shadow: 0 4px 0 var(--shu-dark); }
+.btn-primary:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--shu-dark); }
+.btn:focus-visible { outline: 2px dashed var(--kinari); outline-offset: 4px; }
+
+.eyebrow { font-size: .8rem; letter-spacing: .12em; color: var(--kinari-dim); }
+.num-ja { font-family: var(--f-brush); font-size: 2.6rem; line-height: 1.1; letter-spacing: .06em; }
+.num-read { font-size: .95rem; margin-top: -4px; }
+.num-read [lang="ja"] { font-family: var(--f-ja); }
+.reveal { animation: rise .5s ease-out; }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* ---------- 오미쿠지 종이 ---------- */
+.slip-screen { display: grid; gap: 18px; padding-top: 22px; }
+.slip {
+  position: relative;
+  color: var(--sumi);
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(circle at 30% 40%, rgba(120, 88, 56, .07) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 70% 75%, rgba(120, 88, 56, .05) 0 1px, transparent 1.5px);
+  background-size: 23px 31px, 37px 29px;
+  padding: 12px;
+  box-shadow: 0 14px 30px rgba(50, 8, 0, .35);
+  transform-origin: 50% 0;
+  animation: unfold .9s cubic-bezier(.25, .8, .25, 1);
+}
+@keyframes unfold {
+  from { clip-path: inset(0 0 100% 0); transform: translateY(-10px); }
+  to { clip-path: inset(0 0 0 0); transform: none; }
+}
+.slip-frame {
+  border: 4px double var(--shu-ink);
+  padding: 18px 16px 76px;
+  display: grid;
+  gap: 18px;
+}
+.slip-head { display: grid; justify-items: center; text-align: center; gap: 2px; }
+.shrine { font-family: var(--f-ja); font-weight: 700; color: var(--shu-ink); font-size: .85rem; letter-spacing: .3em; }
+.slip-no { font-family: var(--f-ja); font-size: 1rem; }
+.slip-no small { font-family: var(--f-ui); color: var(--sumi-soft); font-size: .8rem; margin-left: 4px; }
+.level {
+  font-family: var(--f-brush);
+  font-weight: 400;
+  font-size: clamp(4.4rem, 24vw, 5.6rem);
+  line-height: 1.05;
+  letter-spacing: .12em;
+  margin: 4px 0 2px;
+  color: var(--shu-ink);
+}
+.slip.bad .level { color: var(--sumi); }
+.level-read { font-size: 1rem; }
+.level-read [lang="ja"] { font-family: var(--f-ja); font-weight: 700; }
+.meaning { font-family: var(--f-ko); color: var(--sumi-soft); font-size: .86rem; margin-top: 6px; max-width: 30ch; }
+
+.ladder-wrap { display: grid; gap: 6px; }
+.ladder-label { font-size: .75rem; color: var(--sumi-soft); text-align: center; letter-spacing: .08em; }
+.ladder {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+.ladder li {
+  font-family: var(--f-ja);
+  font-weight: 700;
+  font-size: .8rem;
+  text-align: center;
+  padding: 5px 0;
+  border: 1px solid var(--rule);
+  color: var(--sumi-soft);
+  white-space: nowrap;
+}
+.ladder li[aria-current="true"] { background: var(--shu-ink); border-color: var(--shu-ink); color: var(--paper); }
+.slip.bad .ladder li[aria-current="true"] { background: var(--sumi); border-color: var(--sumi); }
+
+.overall {
+  display: grid;
+  gap: 6px;
+  text-align: center;
+  padding: 14px 0;
+  border-block: 1px solid var(--rule);
+}
+.overall .ja { font-family: var(--f-ja); font-weight: 700; font-size: 1.2rem; line-height: 2; text-wrap: balance; }
+.overall .ko { font-family: var(--f-ko); font-size: .96rem; text-wrap: pretty; }
+
+.items { display: grid; }
+.item {
+  display: grid;
+  grid-template-columns: 4.4rem 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px dotted var(--rule);
+}
+.item:last-child { border-bottom: 0; }
+.item dt { display: grid; align-content: start; justify-items: center; gap: 2px; padding-top: 4px; }
+.item dt .ja {
+  font-family: var(--f-ja);
+  font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: var(--shu-ink);
+  border: 1px solid var(--shu-ink);
+  padding: 0 6px;
+  width: 100%;
+  text-align: center;
+}
+.item dt .ko { font-size: .78rem; color: var(--sumi-soft); }
+.item dd { min-width: 0; display: grid; gap: 3px; }
+.item dd .ja { font-family: var(--f-ja); font-weight: 700; font-size: 1.06rem; line-height: 2; text-wrap: pretty; }
+.item dd .ko { font-family: var(--f-ko); font-size: .93rem; line-height: 1.6; }
+
+.custom {
+  font-family: var(--f-ko);
+  font-size: .86rem;
+  color: var(--sumi-soft);
+  background: rgba(173, 42, 22, .06);
+  padding: 10px 12px;
+  line-height: 1.65;
+}
+.custom b { color: var(--shu-ink); font-weight: 700; }
+.seal {
+  position: absolute;
+  right: 26px;
+  bottom: 24px;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--shu-ink);
+  border-radius: 6px;
+  color: var(--shu-ink);
+  font-family: var(--f-brush);
+  font-size: .95rem;
+  line-height: 1;
+  writing-mode: vertical-rl;
+  opacity: .78;
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+
+.actions { display: grid; justify-items: center; gap: 12px; }
+.toggle {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--kinari);
+  font: inherit;
+  font-size: .88rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 6px;
+}
+.toggle:focus-visible { outline: 2px dashed var(--kinari); outline-offset: 2px; }
+
+/* ---------- 묶기(結ぶ) 화면 ---------- */
+.tied { flex: 1; display: grid; align-content: center; justify-items: center; gap: 14px; text-align: center; padding-top: 30px; }
+.tie-scene { position: relative; width: 100%; height: 130px; }
+.tie-scene .rope { position: absolute; top: 20px; left: 0; right: 0; margin: 0; }
+.knots { position: absolute; top: 26px; left: 0; right: 0; display: flex; justify-content: space-evenly; }
+.knot {
+  width: 13px;
+  height: 46px;
+  background: var(--paper);
+  border-radius: 2px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, .2);
+  background-image: linear-gradient(transparent 0 12px, rgba(35, 28, 24, .22) 12px 15px, transparent 15px);
+  transform-origin: 50% 0;
+}
+.knot:nth-child(odd) { transform: rotate(5deg); }
+.knot:nth-child(even) { transform: rotate(-4deg); height: 40px; }
+.knot.new { animation: tie .9s cubic-bezier(.3, 1.4, .5, 1) both; background-color: var(--paper); outline: 2px solid var(--kin); }
+@keyframes tie { from { transform: translateY(70px) scale(1.8) rotate(0); opacity: 0; } to { transform: rotate(-3deg); opacity: 1; } }
+.tied h2 { font-family: var(--f-brush); font-weight: 400; font-size: 2.6rem; letter-spacing: .08em; }
+.tied .ko { font-family: var(--f-ko); font-size: 1rem; max-width: 26ch; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+@media (max-height: 600px) {
+  .title { margin-top: 34px; }
+  .title h1 { font-size: 2.2rem; }
+}
+</style>
+</head>
+<body>
+<div class="backdrop" aria-hidden="true"></div>
+
+<main class="app" id="app">
+
+  <!-- 뽑기 화면 -->
+  <section class="stage" id="stage" aria-labelledby="title">
+    <div class="rope" aria-hidden="true">
+      <svg class="shide" viewBox="0 0 22 46"><polygon points="0,0 12,0 12,11 18,11 18,23 22,23 22,46 12,46 12,34 6,34 6,22 0,22"/></svg>
+      <svg class="shide" viewBox="0 0 22 46"><polygon points="0,0 12,0 12,11 18,11 18,23 22,23 22,46 12,46 12,34 6,34 6,22 0,22"/></svg>
+      <svg class="shide" viewBox="0 0 22 46"><polygon points="0,0 12,0 12,11 18,11 18,23 22,23 22,46 12,46 12,34 6,34 6,22 0,22"/></svg>
+    </div>
+
+    <header class="title">
+      <h1 id="title" lang="ja">おみくじ</h1>
+      <p class="subtitle">오미쿠지 시뮬레이터 · <span lang="ja">御神籤</span></p>
+    </header>
+
+    <div class="box-area">
+      <button class="box-btn" id="box" type="button" aria-label="오미쿠지 통 흔들기">
+        <div class="box-flip" id="box-flip">
+          <div class="box-jolt" id="box-jolt">
+            <svg viewBox="0 -84 160 380" aria-hidden="true">
+              <defs>
+                <clipPath id="above-hole"><rect x="0" y="-84" width="160" height="124"/></clipPath>
+              </defs>
+              <!-- 육각 나무 통 -->
+              <polygon points="20,40 50,54 50,280 20,266" style="fill: var(--wood-left)"/>
+              <polygon points="50,54 110,54 110,280 50,280" style="fill: var(--wood-front)"/>
+              <polygon points="110,54 140,40 140,266 110,280" style="fill: var(--wood-right)"/>
+              <g style="stroke: var(--wood-line)" stroke-width="1.2" fill="none">
+                <path d="M62 60 C64 120 60 200 63 276"/>
+                <path d="M96 60 C93 140 98 210 95 276"/>
+                <path d="M33 50 C35 140 31 200 34 270"/>
+                <path d="M126 50 C124 130 128 200 125 270"/>
+              </g>
+              <polygon points="20,40 50,26 110,26 140,40 110,54 50,54" style="fill: var(--wood-top)"/>
+              <ellipse cx="80" cy="40" rx="8" ry="4" style="fill: var(--sumi)"/>
+              <!-- 검은 띠 -->
+              <g style="fill: var(--sumi)">
+                <polygon points="20,52 50,66 50,75 20,61"/>
+                <polygon points="50,66 110,66 110,75 50,75"/>
+                <polygon points="110,66 140,52 140,61 110,75"/>
+                <polygon points="20,244 50,258 50,267 20,253"/>
+                <polygon points="50,258 110,258 110,267 50,267"/>
+                <polygon points="110,258 140,244 140,253 110,267"/>
+              </g>
+              <!-- 라벨 -->
+              <rect x="61" y="96" width="38" height="128" style="fill: var(--paper); stroke: var(--shu-ink)" stroke-width="2"/>
+              <g lang="ja" text-anchor="middle" style="fill: var(--sumi); font-family: var(--f-brush)" font-size="24">
+                <text x="80" y="126">お</text>
+                <text x="80" y="155">み</text>
+                <text x="80" y="184">く</text>
+                <text x="80" y="213">じ</text>
+              </g>
+              <!-- 막대: 구멍 위로 나온 부분만 보인다 -->
+              <g clip-path="url(#above-hole)">
+                <g class="stick-slide" id="stick">
+                  <rect x="76" y="40" width="8" height="130" rx="2" style="fill: var(--wood-top); stroke: var(--wood-left)" stroke-width="1"/>
+                  <rect x="76" y="40" width="8" height="16" rx="2" style="fill: var(--shu-ink)"/>
+                </g>
+              </g>
+            </svg>
+          </div>
+        </div>
+      </button>
+      <div class="pops" id="pops" aria-hidden="true"></div>
+    </div>
+
+    <div class="control">
+      <div class="panel" id="shake-panel">
+        <div class="gauge" id="gauge" role="img" aria-label="흔든 횟수"></div>
+        <p class="say" lang="ja">スマホを振ってね！</p>
+        <p class="say-ko">폰을 흔들어 주세요</p>
+        <button class="btn btn-primary" id="enable-motion" type="button" hidden>
+          <span>흔들기 켜기</span><small>동작 센서 사용을 허용해 주세요</small>
+        </button>
+        <p class="hint" id="shake-hint">폰을 꽉 잡고 흔들어요. 흔들기가 안 되면 통을 톡톡 눌러도 돼요.</p>
+      </div>
+
+      <div class="panel" id="number-panel" hidden>
+        <p class="eyebrow">막대에 적힌 번호</p>
+        <p class="num-ja" lang="ja" id="num-ja"></p>
+        <p class="num-read"><span lang="ja" id="num-kana"></span> · <span id="num-ko"></span></p>
+        <button class="btn btn-primary" id="open-slip" type="button">
+          <span class="ja" lang="ja">おみくじを受け取る</span><small>운세 종이 받기</small>
+        </button>
+        <p class="hint">막대 번호와 같은 번호의 서랍에서 종이를 꺼내요.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 결과: 오미쿠지 종이 -->
+  <section class="slip-screen" id="slip-screen" hidden aria-label="운세 결과">
+    <article class="slip" id="slip">
+      <div class="slip-frame">
+        <header class="slip-head">
+          <p class="shrine" lang="ja" id="shrine"></p>
+          <p class="slip-no"><span lang="ja" id="slip-no"></span><small id="slip-no-ko"></small></p>
+          <h2 class="level" lang="ja" id="level"></h2>
+          <p class="level-read"><span lang="ja" id="level-kana"></span> · <span id="level-ko"></span></p>
+          <p class="meaning" id="meaning"></p>
+        </header>
+
+        <div class="ladder-wrap">
+          <p class="ladder-label">운세 순서 · <span lang="ja">運勢の順番</span></p>
+          <ol class="ladder" id="ladder" lang="ja"></ol>
+        </div>
+
+        <section class="overall" aria-label="총운">
+          <p class="ja" lang="ja" id="overall-ja"></p>
+          <p class="ko" id="overall-ko"></p>
+        </section>
+
+        <dl class="items" id="items"></dl>
+
+        <p class="custom" id="custom"></p>
+      </div>
+      <div class="seal" aria-hidden="true" lang="ja">神社</div>
+    </article>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="tie" type="button" hidden>
+        <span class="ja" lang="ja">おみくじを結ぶ</span><small>나무에 묶고 가기</small>
+      </button>
+      <button class="btn" id="again-1" type="button">
+        <span class="ja" lang="ja">もう一度引く</span><small>다시 뽑기</small>
+      </button>
+      <button class="toggle" id="ruby-toggle" type="button" aria-pressed="true">후리가나 숨기기</button>
+    </div>
+  </section>
+
+  <!-- 묶기 화면 -->
+  <section class="tied" id="tied-screen" hidden aria-labelledby="tied-title">
+    <div class="tie-scene" aria-hidden="true">
+      <div class="rope"></div>
+      <div class="knots">
+        <span class="knot"></span><span class="knot"></span><span class="knot"></span>
+        <span class="knot new" id="new-knot"></span>
+        <span class="knot"></span><span class="knot"></span><span class="knot"></span>
+      </div>
+    </div>
+    <h2 lang="ja" id="tied-title">結びました</h2>
+    <p class="ko">나쁜 운은 신사에 묶어 두고 가요. 이제 좋은 일만 남았어요!</p>
+    <p class="hint"><span lang="ja">結ぶ（むすぶ）</span> = 묶다</p>
+    <button class="btn btn-primary" id="again-2" type="button">
+      <span class="ja" lang="ja">もう一度引く</span><small>다시 뽑기</small>
+    </button>
+  </section>
+
+  <p class="sr-only" id="status" role="status" aria-live="polite"></p>
+</main>
+
+<script>
+// =====================================================================
+//  설정 — 여기만 바꿔도 대부분 조정됩니다
+// =====================================================================
+const CONFIG = {
+  shrineName: 'にほんご神社',  // 종이 맨 위에 찍히는 신사 이름
+  shakesNeeded: 5,             // 막대가 나오기까지 흔들어야 하는 횟수
+  shakeThreshold: 13,          // 흔들림 감도 (m/s²). 작을수록 살짝만 흔들어도 인식
+  seed: 2026,                  // 번호 ↔ 운세 배치를 정하는 값. 바꾸면 배치가 새로 섞임
+};
+
+// 운세 항목. 일본어는 「한자{읽기}」로 쓰면 후리가나가 붙습니다.
+const CATEGORIES = [
+  { key: 'love',   ja: '恋愛{れんあい}',   ko: '연애운' },
+  { key: 'study',  ja: '学業{がくぎょう}', ko: '학업운' },
+  { key: 'health', ja: '健康{けんこう}',   ko: '건강운' },
+  { key: 'money',  ja: '金運{きんうん}',   ko: '금전운' },
+];
+
+// 운세 단계. sticks = 막대 개수(합계가 전체 막대 수 = 번호 범위).
+// 각 항목은 문구 3개 중 하나가 막대 번호에 따라 고정으로 정해집니다.
+const LEVELS = [
+  {
+    kanji: '大吉', kana: 'だいきち', ko: '대길', sticks: 15, bad: false,
+    meaning: '大{だい}=크다, 吉{きち}=좋은 운. 가장 좋은 운세예요!',
+    overall: { ja: '何事{なにごと}も思{おも}いのままに進{すす}む', ko: '무엇이든 마음먹은 대로 술술 풀리는 최고의 운이에요. 하고 싶었던 일에 도전해 보세요.' },
+    love: [
+      { ja: '思{おも}いは必{かなら}ず通{つう}じる', ko: '마음은 반드시 전해져요. 용기를 내서 먼저 다가가 보세요!' },
+      { ja: '良{よ}き縁{えん}あり', ko: '좋은 인연이 찾아와요. 새로운 만남을 기대해도 좋아요.' },
+      { ja: 'この人{ひと}より他{ほか}になし', ko: '지금 마음속 그 사람이 바로 운명의 상대! 믿고 가도 좋아요.' },
+    ],
+    study: [
+      { ja: '努力{どりょく}は実{み}を結{むす}ぶ', ko: '노력한 만큼 확실히 결과가 나와요. 이번 시험, 기대해도 좋아요!' },
+      { ja: '安心{あんしん}して勉学{べんがく}せよ', ko: '걱정 말고 공부에 집중하세요. 배운 것이 쏙쏙 머리에 들어와요.' },
+      { ja: '思{おも}わぬ才能{さいのう}が花開{はなひら}く', ko: '생각지도 못한 재능이 꽃피어요. 새로운 과목이나 취미에 도전해 보세요!' },
+    ],
+    health: [
+      { ja: '心身{しんしん}ともに健{すこ}やか', ko: '몸도 마음도 아주 건강해요. 지금 컨디션을 그대로 유지해요!' },
+      { ja: '病{やまい}は軽{かる}くすぐ治{なお}る', ko: '아파도 금방 나아요. 그래도 잠은 충분히 자요.' },
+      { ja: '元気{げんき}いっぱい、何{なん}でもできる', ko: '에너지가 넘치는 시기! 운동을 시작하기에 딱 좋아요.' },
+    ],
+    money: [
+      { ja: '思{おも}わぬ臨時収入{りんじしゅうにゅう}あり', ko: '뜻밖의 용돈이 생길지도 몰라요!' },
+      { ja: '懐{ふところ}が温{あたた}かくなる', ko: '주머니가 두둑해지는 시기예요. 그래도 저축은 잊지 마세요.' },
+      { ja: '買{か}い物{もの}に吉{きち}あり', ko: '쇼핑운 최고! 오래 갖고 싶던 물건을 좋은 가격에 만날 수 있어요.' },
+    ],
+  },
+  {
+    kanji: '吉', kana: 'きち', ko: '길', sticks: 20, bad: false,
+    meaning: '吉{きち}=좋다, 운이 좋다. 대길 다음으로 좋은 운세예요.',
+    overall: { ja: '穏{おだ}やかな幸{しあわ}せが続{つづ}く', ko: '잔잔하고 따뜻한 행운이 이어져요. 평소처럼 성실하게 지내면 좋은 일이 찾아와요.' },
+    love: [
+      { ja: '焦{あせ}らず待{ま}てば叶{かな}う', ko: '서두르지 않고 기다리면 이루어져요. 자연스러운 모습이 가장 매력적이에요.' },
+      { ja: '友情{ゆうじょう}から恋{こい}が芽生{めば}える', ko: '친구 사이에서 설렘이 싹틀지도? 가까운 사람을 다시 한번 봐요.' },
+      { ja: '笑顔{えがお}が良縁{りょうえん}を呼{よ}ぶ', ko: '웃는 얼굴이 좋은 인연을 불러와요. 많이 웃어요!' },
+    ],
+    study: [
+      { ja: 'こつこつ続{つづ}ければ伸{の}びる', ko: '꾸준히 하면 쭉쭉 늘어요. 하루 10분이라도 매일!' },
+      { ja: '友{とも}と学{まな}べば吉{きち}', ko: '친구와 함께 공부하면 효과가 두 배! 서로 문제를 내 봐요.' },
+      { ja: '得意科目{とくいかもく}をさらに磨{みが}け', ko: '잘하는 과목을 더 갈고닦으면 자신감이 붙어요.' },
+    ],
+    health: [
+      { ja: '規則正{きそくただ}しい生活{せいかつ}で良{よ}し', ko: '규칙적인 생활만 지키면 문제없어요.' },
+      { ja: 'よく眠{ねむ}れば元気{げんき}になる', ko: '푹 자는 것이 최고의 보약! 오늘은 일찍 자 봐요.' },
+      { ja: '体{からだ}を動{うご}かすと吉{きち}', ko: '몸을 움직이면 기분도 좋아져요. 산책이나 스트레칭 추천!' },
+    ],
+    money: [
+      { ja: '無駄遣{むだづか}いせねば困{こま}らず', ko: '낭비만 하지 않으면 돈 걱정은 없어요.' },
+      { ja: '小{ちい}さな幸運{こううん}あり', ko: '편의점 1+1 같은 소소한 행운이 찾아와요!' },
+      { ja: '貯{た}めれば増{ふ}える', ko: '조금씩 모으면 어느새 불어나 있어요. 저금통을 준비해요!' },
+    ],
+  },
+  {
+    kanji: '中吉', kana: 'ちゅうきち', ko: '중길', sticks: 20, bad: false,
+    meaning: '中{ちゅう}=가운데. 적당히 좋은, 중간 크기의 행운이에요.',
+    overall: { ja: '努力{どりょく}次第{しだい}で運{うん}が開{ひら}ける', ko: '노력하는 만큼 운이 활짝 열려요. 지금의 노력이 곧 행운으로 돌아와요.' },
+    love: [
+      { ja: '素直{すなお}になれば進展{しんてん}あり', ko: '솔직해지면 관계가 한 걸음 나아가요.' },
+      { ja: '待{ま}ち人{びと}は遅{おく}れて来{く}る', ko: '기다리는 사람은 조금 늦게 와요. 조급해하지 말아요.' },
+      { ja: '話{はな}しかければ縁{えん}が深{ふか}まる', ko: '먼저 말을 걸면 인연이 깊어져요. 인사부터 시작해 봐요!' },
+    ],
+    study: [
+      { ja: '苦手{にがて}を克服{こくふく}する好機{こうき}', ko: '약한 과목을 극복할 절호의 기회예요.' },
+      { ja: '復習{ふくしゅう}を怠{おこた}るな', ko: '복습을 게을리하지 마세요. 오늘 배운 건 오늘 다시 보기!' },
+      { ja: '目標{もくひょう}を決{き}めれば道{みち}が開{ひら}ける', ko: '목표를 정하면 길이 보여요. 작은 목표부터 세워 봐요.' },
+    ],
+    health: [
+      { ja: '食事{しょくじ}に気{き}をつけよ', ko: '식사를 잘 챙기세요. 아침밥은 꼭!' },
+      { ja: '疲{つか}れたら早{はや}めに休{やす}め', ko: '피곤할 땐 일찍 쉬어 주세요. 무리는 금물!' },
+      { ja: '水{みず}をよく飲{の}むと良{よ}し', ko: '물을 자주 마시면 컨디션이 좋아져요.' },
+    ],
+    money: [
+      { ja: '計画的{けいかくてき}に使{つか}えば吉{きち}', ko: '계획을 세워서 쓰면 좋아요. 용돈 기입장을 써 볼까요?' },
+      { ja: '欲{ほ}しい物{もの}は少{すこ}し待{ま}て', ko: '갖고 싶은 물건은 조금만 기다려요. 더 좋은 기회가 와요.' },
+      { ja: '人{ひと}への親切{しんせつ}が福{ふく}を呼{よ}ぶ', ko: '남에게 베푼 친절이 복이 되어 돌아와요.' },
+    ],
+  },
+  {
+    kanji: '小吉', kana: 'しょうきち', ko: '소길', sticks: 15, bad: false,
+    meaning: '小{しょう}=작다. 작지만 확실한 행운이에요.',
+    overall: { ja: '小{ちい}さな幸{しあわ}せを大切{たいせつ}に', ko: '작지만 확실한 행운이 있어요. 소소한 기쁨을 놓치지 마세요.' },
+    love: [
+      { ja: '小{ちい}さなきっかけを逃{のが}すな', ko: '작은 계기를 놓치지 마세요. 눈이 마주치면 웃어 주기!' },
+      { ja: '相手{あいて}の話{はなし}をよく聞{き}け', ko: '상대의 이야기에 귀 기울이면 마음이 가까워져요.' },
+      { ja: 'ゆっくり近{ちか}づくのが吉{きち}', ko: '천천히 다가가는 게 좋아요. 급할수록 돌아가요!' },
+    ],
+    study: [
+      { ja: '基礎{きそ}を固{かた}めよ', ko: '기초를 단단히! 교과서 예제부터 다시 풀어 봐요.' },
+      { ja: '早起{はやお}きして学{まな}べば吉{きち}', ko: '아침 공부가 잘 맞는 시기예요. 10분만 일찍 일어나 봐요.' },
+      { ja: 'ノートを整理{せいり}すると良{よ}し', ko: '노트를 정리하면 머릿속도 정리돼요.' },
+    ],
+    health: [
+      { ja: '夜更{よふ}かしは控{ひか}えよ', ko: '밤늦게까지 폰 보는 건 줄여요. 잠이 보약!' },
+      { ja: '軽{かる}い運動{うんどう}を続{つづ}けよ', ko: '가벼운 운동을 꾸준히 하면 좋아요.' },
+      { ja: '冷{ひ}えに気{き}をつけよ', ko: '몸이 차가워지지 않게 따뜻하게 입어요.' },
+    ],
+    money: [
+      { ja: '小銭{こぜに}を大切{たいせつ}に', ko: '동전 하나도 소중히! 티끌 모아 태산이에요.' },
+      { ja: '衝動買{しょうどうが}いに注意{ちゅうい}', ko: '충동구매 주의! 장바구니에 하루 묵혀 두기.' },
+      { ja: 'なくした物{もの}は見{み}つかる', ko: '잃어버린 물건을 다시 찾게 돼요. 가방 구석을 뒤져 봐요!' },
+    ],
+  },
+  {
+    kanji: '末吉', kana: 'すえきち', ko: '말길', sticks: 15, bad: false,
+    meaning: '末{すえ}=끝, 나중. 지금보다 나중에 점점 좋아지는 운이에요.',
+    overall: { ja: '今{いま}は種{たね}まきの時{とき}、後{のち}に花{はな}咲{さ}く', ko: '지금은 씨앗을 뿌리는 시기. 시간이 지나면 꽃이 피는, 천천히 오는 행운이에요.' },
+    love: [
+      { ja: '時{とき}が経{た}てば想{おも}いは届{とど}く', ko: '시간이 지나면 마음이 전해져요. 지금은 나를 가꾸는 시간!' },
+      { ja: '今{いま}は自分磨{じぶんみが}きの時{とき}', ko: '지금은 자기 자신을 갈고닦을 때예요.' },
+      { ja: '焦{あせ}れば遠{とお}ざかる', ko: '서두르면 멀어져요. 한 걸음 물러서서 지켜봐요.' },
+    ],
+    study: [
+      { ja: '後半{こうはん}に伸{の}びる', ko: '처음엔 어려워도 뒤로 갈수록 실력이 쑥 올라요.' },
+      { ja: '諦{あきら}めなければ結果{けっか}が出{で}る', ko: '포기하지 않으면 결과가 나와요. 끝까지 힘내요!' },
+      { ja: '間違{まちが}いから学{まな}べ', ko: '틀린 문제가 최고의 선생님! 오답 노트를 만들어 봐요.' },
+    ],
+    health: [
+      { ja: '無理{むり}をせず休{やす}め', ko: '무리하지 말고 쉬어 가요.' },
+      { ja: '姿勢{しせい}に気{き}をつけよ', ko: '자세에 신경 써요. 거북목 주의!' },
+      { ja: '少{すこ}しずつ回復{かいふく}する', ko: '조금씩 회복되고 있어요. 천천히 좋아져요.' },
+    ],
+    money: [
+      { ja: '今{いま}は貯{た}める時{とき}', ko: '지금은 모으는 시기예요. 큰 지출은 미뤄요.' },
+      { ja: '貸{か}し借{か}りは控{ひか}えよ', ko: '돈을 빌려주거나 빌리는 건 피해요.' },
+      { ja: '後{のち}に良{よ}い知{し}らせあり', ko: '나중에 좋은 소식이 있어요. 기대해요!' },
+    ],
+  },
+  {
+    kanji: '凶', kana: 'きょう', ko: '흉', sticks: 10, bad: true,
+    meaning: '凶{きょう}=나쁜 운. 하지만 "조심하면 괜찮다"는 신의 조언이에요.',
+    overall: { ja: '慎{つつし}めば災{わざわ}いは去{さ}る', ko: '조심하면 나쁜 일은 지나가요. 오늘은 차분하고 신중하게!' },
+    love: [
+      { ja: '今{いま}は待{ま}つべし', ko: '지금은 기다릴 때예요. 고백은 잠시 미뤄 둬요.' },
+      { ja: '言葉{ことば}に気{き}をつけよ', ko: '말 한마디에 오해가 생길 수 있어요. 부드럽게 말해요.' },
+      { ja: '誤解{ごかい}は誠意{せいい}で解{と}ける', ko: '오해가 생겨도 진심을 보이면 풀려요.' },
+    ],
+    study: [
+      { ja: '油断大敵{ゆだんたいてき}', ko: '방심은 금물! 다 안다고 생각할 때가 제일 위험해요.' },
+      { ja: '忘{わす}れ物{もの}に注意{ちゅうい}', ko: '준비물, 숙제 챙겼나요? 자기 전에 가방 확인!' },
+      { ja: '基本{きほん}に戻{もど}れば道{みち}あり', ko: '막힐 땐 기본으로 돌아가면 길이 보여요.' },
+    ],
+    health: [
+      { ja: '足元{あしもと}に注意{ちゅうい}せよ', ko: '발밑 조심! 계단에서는 폰 보지 않기.' },
+      { ja: '睡眠不足{すいみんぶそく}に注意{ちゅうい}', ko: '잠이 부족하면 컨디션이 무너져요. 오늘은 일찍 자요.' },
+      { ja: '無理{むり}は禁物{きんもつ}', ko: '무리는 절대 금물! 아프면 꼭 쉬어요.' },
+    ],
+    money: [
+      { ja: '財布{さいふ}を落{お}とさぬよう用心{ようじん}せよ', ko: '지갑, 교통카드 분실 주의!' },
+      { ja: '出費{しゅっぴ}多{おお}し、節約{せつやく}せよ', ko: '나갈 돈이 많은 시기예요. 아껴 써요.' },
+      { ja: 'うまい話{はなし}に乗{の}るな', ko: '너무 좋은 이야기에는 함정이 있을 수도. 신중하게!' },
+    ],
+  },
+  {
+    kanji: '大凶', kana: 'だいきょう', ko: '대흉', sticks: 5, bad: true,
+    meaning: '大凶{だいきょう}은 아주 드문 운세! 바닥을 찍었으니 이제 올라갈 일만 남았어요.',
+    overall: { ja: 'これより先{さき}は上{あ}がるのみ', ko: '지금이 바닥이에요. 여기서부터는 올라갈 일만 남았어요!' },
+    love: [
+      { ja: '今{いま}は静{しず}かに見守{みまも}れ', ko: '지금은 조용히 지켜볼 때예요. 다음 기회가 꼭 와요.' },
+      { ja: '自分{じぶん}を大切{たいせつ}にせよ', ko: '남보다 나 자신을 먼저 아껴 주세요. 그게 다음 인연을 부르는 힘!' },
+      { ja: '嵐{あらし}の後{あと}に晴{は}れ間{ま}あり', ko: '폭풍 뒤에는 맑은 하늘이 와요. 조금만 버텨요.' },
+    ],
+    study: [
+      { ja: '一{いち}からやり直{なお}せ', ko: '처음부터 다시 시작해도 괜찮아요. 지금이 기회!' },
+      { ja: '人{ひと}に教{おし}えを乞{こ}え', ko: '모르는 건 선생님이나 친구에게 바로 물어봐요.' },
+      { ja: '今日{きょう}の努力{どりょく}が明日{あした}を変{か}える', ko: '오늘의 노력이 내일을 바꿔요. 딱 한 문제만 더!' },
+    ],
+    health: [
+      { ja: '体{からだ}の声{こえ}を聞{き}け', ko: '몸이 보내는 신호에 귀 기울여요. 피곤하면 쉬기!' },
+      { ja: '怪我{けが}に注意{ちゅうい}せよ', ko: '다치지 않게 조심! 체육 시간엔 준비 운동을 꼭 해요.' },
+      { ja: '心{こころ}を休{やす}めよ', ko: '마음도 쉬어야 해요. 좋아하는 음악을 들으며 쉬어 가요.' },
+    ],
+    money: [
+      { ja: '財布{さいふ}の紐{ひも}を締{し}めよ', ko: '지갑 끈을 꽉 묶어요! (財布の紐を締める = 돈을 아껴 쓰다)' },
+      { ja: '失{な}くし物{もの}に注意{ちゅうい}', ko: '물건을 잃어버리기 쉬운 날. 소지품에 이름을 붙여 둬요.' },
+      { ja: '今{いま}は守{まも}りに徹{てっ}せよ', ko: '지금은 지키는 데 집중! 큰돈은 쓰지 않기.' },
+    ],
+  },
+];
+
+const CUSTOM = {
+  good: '<b>일본에서는</b> 좋은 운세를 지갑이나 수첩에 넣어 부적처럼 <span lang="ja">持{も}ち帰{かえ}る</span>(가지고 돌아가는) 경우가 많아요.',
+  bad: '<b>일본에서는</b> 나쁜 운세가 나오면 신사의 나무나 줄에 <span lang="ja">結{むす}ぶ</span>(묶고) 돌아가요. 나쁜 운을 신사에 두고 간다는 뜻이에요.',
+};
+
+// =====================================================================
+//  막대 번호 → 운세 배치표 (seed가 같으면 모든 폰에서 같은 번호 = 같은 종이)
+// =====================================================================
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+const STICKS = (() => {
+  const list = [];
+  LEVELS.forEach((lv, i) => { for (let k = 0; k < lv.sticks; k++) list.push(i); });
+  const rnd = mulberry32(CONFIG.seed);
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  const seen = LEVELS.map(() => 0);
+  return list.map(level => {
+    // 같은 운세끼리도 문구 조합이 겹치지 않도록 순번을 3진법 자릿수로 나눠 씀
+    const k = seen[level]++;
+    const d = [k % 3, Math.floor(k / 3) % 3, Math.floor(k / 9) % 3];
+    d.push((d[0] + d[1] + d[2]) % 3);
+    return { level, picks: d };
+  });
+})();
+
+// =====================================================================
+//  표기 도우미
+// =====================================================================
+const KANJI_DIGITS = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+const KANA_DIGITS = ['', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう'];
+
+function kanjiNumber(n) {
+  if (n === 100) return '百';
+  const t = Math.floor(n / 10), o = n % 10;
+  return (t > 1 ? KANJI_DIGITS[t] : '') + (t ? '十' : '') + KANJI_DIGITS[o];
+}
+function kanaNumber(n) {
+  if (n === 100) return 'ひゃく';
+  const t = Math.floor(n / 10), o = n % 10;
+  return (t > 1 ? KANA_DIGITS[t] : '') + (t ? 'じゅう' : '') + KANA_DIGITS[o];
+}
+function esc(s) {
+  return s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+}
+function ruby(s) {
+  return s.replace(/([㐀-鿿々]+)\{([^}]+)\}/g, '<ruby>$1<rt>$2</rt></ruby>');
+}
+
+// =====================================================================
+//  화면 진행
+// =====================================================================
+const $ = id => document.getElementById(id);
+const els = {
+  stage: $('stage'), slipScreen: $('slip-screen'), tiedScreen: $('tied-screen'),
+  box: $('box'), boxFlip: $('box-flip'), boxJolt: $('box-jolt'), stick: $('stick'), pops: $('pops'),
+  gauge: $('gauge'), shakePanel: $('shake-panel'), numberPanel: $('number-panel'),
+  enableMotion: $('enable-motion'), status: $('status'),
+};
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let state = 'ready';
+let shakes = 0;
+let lastShakeAt = 0;
+let current = 0;
+let timers = [];
+
+function later(fn, ms) { timers.push(setTimeout(fn, reduceMotion ? 0 : ms)); }
+function buzz(pattern) { try { navigator.vibrate && navigator.vibrate(pattern); } catch (e) {} }
+function say(text) { els.status.textContent = text; }
+
+function buildGauge() {
+  els.gauge.innerHTML = '<i></i>'.repeat(CONFIG.shakesNeeded);
+  updateGauge();
+}
+function updateGauge() {
+  [...els.gauge.children].forEach((el, i) => el.classList.toggle('on', i < shakes));
+  els.gauge.setAttribute('aria-label', `흔든 횟수 ${shakes} / ${CONFIG.shakesNeeded}`);
+}
+
+function registerShake(minGap) {
+  if (state !== 'ready') return;
+  const now = performance.now();
+  if (now - lastShakeAt < minGap) return;
+  lastShakeAt = now;
+  shakes++;
+  els.boxJolt.classList.remove('jolt');
+  void els.boxJolt.offsetWidth;
+  els.boxJolt.classList.add('jolt');
+  popKara();
+  buzz(15);
+  updateGauge();
+  if (shakes >= CONFIG.shakesNeeded) draw();
+}
+
+function popKara() {
+  if (reduceMotion) return;
+  const p = document.createElement('span');
+  p.className = 'pop';
+  p.textContent = Math.random() < .5 ? 'カラ' : 'カラン';
+  const left = Math.random() < .5 ? 8 + Math.random() * 18 : 64 + Math.random() * 18;
+  p.style.left = left + '%';
+  p.style.top = 18 + Math.random() * 50 + '%';
+  p.style.setProperty('--r', (Math.random() * 30 - 15) + 'deg');
+  els.pops.appendChild(p);
+  setTimeout(() => p.remove(), 800);
+}
+
+function draw() {
+  state = 'drawing';
+  current = 1 + Math.floor(Math.random() * STICKS.length);
+  say('막대가 나오고 있어요');
+  later(() => els.boxFlip.classList.add('flipped'), 250);
+  later(() => els.stick.classList.add('out'), 950);
+  later(() => showNumber(current), 1900);
+}
+
+function showNumber(n) {
+  state = 'number';
+  $('num-ja').textContent = `第${kanjiNumber(n)}番`;
+  $('num-kana').textContent = `だい${kanaNumber(n)}ばん`;
+  $('num-ko').textContent = `${n}번`;
+  els.shakePanel.hidden = true;
+  els.numberPanel.hidden = false;
+  els.numberPanel.classList.remove('reveal');
+  void els.numberPanel.offsetWidth;
+  els.numberPanel.classList.add('reveal');
+  buzz([40, 60, 40]);
+  say(`${n}번 막대가 나왔어요`);
+  $('open-slip').focus({ preventScroll: true });
+}
+
+function renderSlip(n) {
+  const stick = STICKS[n - 1];
+  const lv = LEVELS[stick.level];
+  $('shrine').textContent = CONFIG.shrineName;
+  $('slip-no').textContent = `第${kanjiNumber(n)}番`;
+  $('slip-no-ko').textContent = `${n}번`;
+  $('level').textContent = lv.kanji;
+  $('level-kana').textContent = lv.kana;
+  $('level-ko').textContent = lv.ko;
+  $('meaning').innerHTML = ruby(esc(lv.meaning));
+  $('ladder').innerHTML = LEVELS.map((l, i) =>
+    `<li${i === stick.level ? ' aria-current="true"' : ''}>${l.kanji}</li>`).join('');
+  $('overall-ja').innerHTML = `「${ruby(esc(lv.overall.ja))}」`;
+  $('overall-ko').textContent = lv.overall.ko;
+  $('items').innerHTML = CATEGORIES.map((c, i) => {
+    const list = lv[c.key];
+    const line = list[stick.picks[i] % list.length];
+    return `<div class="item">
+      <dt><span class="ja" lang="ja">${ruby(esc(c.ja))}</span><span class="ko">${esc(c.ko)}</span></dt>
+      <dd><p class="ja" lang="ja">${ruby(esc(line.ja))}</p><p class="ko">${esc(line.ko)}</p></dd>
+    </div>`;
+  }).join('');
+  $('custom').innerHTML = ruby(lv.bad ? CUSTOM.bad : CUSTOM.good);
+  $('slip').classList.toggle('bad', lv.bad);
+  $('tie').hidden = !lv.bad;
+  return lv;
+}
+
+function openSlip() {
+  const lv = renderSlip(current);
+  state = 'slip';
+  els.stage.hidden = true;
+  els.slipScreen.hidden = false;
+  const slip = $('slip');
+  slip.style.animation = 'none';
+  void slip.offsetWidth;
+  slip.style.animation = '';
+  window.scrollTo(0, 0);
+  say(`${current}번, ${lv.ko}입니다`);
+}
+
+function tie() {
+  state = 'tied';
+  els.slipScreen.hidden = true;
+  els.tiedScreen.hidden = false;
+  const k = $('new-knot');
+  k.style.animation = 'none';
+  void k.offsetWidth;
+  k.style.animation = '';
+  window.scrollTo(0, 0);
+  $('again-2').focus({ preventScroll: true });
+}
+
+function reset() {
+  timers.forEach(clearTimeout);
+  timers = [];
+  state = 'ready';
+  shakes = 0;
+  els.boxFlip.classList.add('instant');
+  els.boxFlip.classList.remove('flipped');
+  els.stick.classList.remove('out');
+  void els.boxFlip.offsetWidth;
+  els.boxFlip.classList.remove('instant');
+  els.slipScreen.hidden = true;
+  els.tiedScreen.hidden = true;
+  els.stage.hidden = false;
+  els.numberPanel.hidden = true;
+  els.shakePanel.hidden = false;
+  updateGauge();
+  window.scrollTo(0, 0);
+  say('다시 흔들어 주세요');
+}
+
+// ---------- 흔들기 감지 ----------
+function onMotion(e) {
+  const a = e.acceleration;
+  const g = e.accelerationIncludingGravity;
+  let mag;
+  if (a && a.x != null) mag = Math.hypot(a.x, a.y, a.z);
+  else if (g && g.x != null) mag = Math.abs(Math.hypot(g.x, g.y, g.z) - 9.81);
+  else return;
+  // 센서 값이 들어온다 = 이미 허용된 상태이므로 허용 버튼은 필요 없음
+  els.enableMotion.hidden = true;
+  if (mag > CONFIG.shakeThreshold) registerShake(220);
+}
+
+window.addEventListener('devicemotion', onMotion);
+
+// 아이폰(iOS 13+)은 버튼을 눌러 동작 센서를 허용해야 값이 들어온다
+const needsPermission = typeof DeviceMotionEvent !== 'undefined'
+  && typeof DeviceMotionEvent.requestPermission === 'function';
+
+if (needsPermission) {
+  els.enableMotion.hidden = false;
+  els.enableMotion.addEventListener('click', async () => {
+    try {
+      const result = await DeviceMotionEvent.requestPermission();
+      if (result === 'granted') {
+        els.enableMotion.hidden = true;
+        say('이제 폰을 흔들어 주세요');
+      } else {
+        els.enableMotion.hidden = true;
+        $('shake-hint').textContent = '동작 센서가 꺼져 있어요. 통을 톡톡 눌러서 흔들 수 있어요.';
+      }
+    } catch (err) {
+      els.enableMotion.hidden = true;
+      $('shake-hint').textContent = '이 화면에서는 흔들기를 쓸 수 없어요. 통을 톡톡 눌러서 흔들어 주세요.';
+    }
+  });
+}
+
+// ---------- 버튼 ----------
+els.box.addEventListener('click', () => registerShake(120));
+els.boxJolt.addEventListener('animationend', () => els.boxJolt.classList.remove('jolt'));
+$('open-slip').addEventListener('click', openSlip);
+$('tie').addEventListener('click', tie);
+$('again-1').addEventListener('click', reset);
+$('again-2').addEventListener('click', reset);
+
+const rubyToggle = $('ruby-toggle');
+function setRuby(on) {
+  document.body.classList.toggle('no-ruby', !on);
+  rubyToggle.setAttribute('aria-pressed', String(on));
+  rubyToggle.textContent = on ? '후리가나 숨기기' : '후리가나 보이기';
+  try { localStorage.setItem('omikuji-ruby', on ? '1' : '0'); } catch (e) {}
+}
+rubyToggle.addEventListener('click', () => setRuby(document.body.classList.contains('no-ruby')));
+let rubyPref = true;
+try { rubyPref = localStorage.getItem('omikuji-ruby') !== '0'; } catch (e) {}
+setRuby(rubyPref);
+
+buildGauge();
+</script>
+</body>
+</html>
